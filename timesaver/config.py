@@ -9,6 +9,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "blocked_sites": [],
     "schedules": [],
     "enabled": False,
+    "accountability_emails": [],
+    "smtp_config": {
+        "server": "",
+        "port": 587,
+        "username": "",
+        "password": "",
+    },
 }
 
 
@@ -199,3 +206,74 @@ def normalize_domain(domain: str) -> str:
         domain = domain[4:]
 
     return domain.lower()
+
+
+def add_accountability_email(email: str) -> bool:
+    """Add an accountability partner email.
+
+    Args:
+        email: Email address to add
+
+    Returns:
+        True if email was added, False if already exists.
+    """
+    config = load_config()
+    email = email.lower().strip()
+
+    if email in config["accountability_emails"]:
+        return False
+
+    config["accountability_emails"].append(email)
+    save_config(config)
+    return True
+
+
+def remove_accountability_email(email: str) -> bool:
+    """Remove an accountability partner email.
+
+    Args:
+        email: Email address to remove
+
+    Returns:
+        True if email was removed, False if not found.
+    """
+    config = load_config()
+    email = email.lower().strip()
+
+    if email not in config["accountability_emails"]:
+        return False
+
+    config["accountability_emails"].remove(email)
+    save_config(config)
+    return True
+
+
+def get_accountability_emails() -> list[str]:
+    """Get list of accountability partner emails."""
+    config = load_config()
+    return config["accountability_emails"]
+
+
+def set_smtp_config(server: str, port: int, username: str, password: str) -> None:
+    """Set SMTP configuration.
+
+    Args:
+        server: SMTP server hostname
+        port: SMTP server port
+        username: SMTP username
+        password: SMTP password
+    """
+    config = load_config()
+    config["smtp_config"] = {
+        "server": server,
+        "port": port,
+        "username": username,
+        "password": password,
+    }
+    save_config(config)
+
+
+def get_smtp_config() -> dict[str, Any]:
+    """Get SMTP configuration."""
+    config = load_config()
+    return config["smtp_config"]

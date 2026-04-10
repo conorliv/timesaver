@@ -6,7 +6,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 from click.testing import CliRunner
 
-from timesaver import blocker, config, daemon
+from timesaver import blocker, config, daemon, notifier, scheduler
 from timesaver.main import cli
 
 
@@ -325,3 +325,151 @@ def test_restore_failure(runner, isolated_env):
 
     assert result.exit_code == 0
     assert "Failed to restore" in result.output
+
+
+# Shame command tests
+
+
+def test_shame_add(runner, isolated_env):
+    """Test adding an accountability partner."""
+    result = runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    assert result.exit_code == 0
+    assert "Added partner@example.com" in result.output
+
+    emails = config.get_accountability_emails()
+    assert "partner@example.com" in emails
+
+
+def test_shame_add_duplicate(runner, isolated_env):
+    """Test adding a duplicate accountability partner."""
+    runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    result = runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    assert result.exit_code == 0
+    assert "already an accountability partner" in result.output
+
+
+def test_shame_remove(runner, isolated_env):
+    """Test removing an accountability partner."""
+    runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    result = runner.invoke(cli, ["shame", "remove", "partner@example.com"])
+    assert result.exit_code == 0
+    assert "Removed partner@example.com" in result.output
+
+    emails = config.get_accountability_emails()
+    assert "partner@example.com" not in emails
+
+
+def test_shame_remove_not_found(runner, isolated_env):
+    """Test removing an accountability partner that doesn't exist."""
+    result = runner.invoke(cli, ["shame", "remove", "nobody@example.com"])
+    assert result.exit_code == 0
+    assert "not an accountability partner" in result.output
+
+
+def test_shame_list_empty(runner, isolated_env):
+    """Test listing accountability partners when empty."""
+    result = runner.invoke(cli, ["shame", "list"])
+    assert result.exit_code == 0
+    assert "No accountability partners" in result.output
+
+
+def test_shame_list(runner, isolated_env):
+    """Test listing accountability partners."""
+    runner.invoke(cli, ["shame", "add", "partner1@example.com"])
+    runner.invoke(cli, ["shame", "add", "partner2@example.com"])
+    result = runner.invoke(cli, ["shame", "list"])
+    assert result.exit_code == 0
+    assert "partner1@example.com" in result.output
+    assert "partner2@example.com" in result.output
+
+
+def test_shame_config(runner, isolated_env):
+    """Test configuring SMTP settings."""
+    result = runner.invoke(
+        cli,
+        ["shame", "config"],
+        input="smtp.example.com\n587\nuser@example.com\npassword123\n",
+    )
+    assert result.exit_code == 0
+    assert "SMTP configuration saved" in result.output
+
+    smtp = config.get_smtp_config()
+    assert smtp["server"] == "smtp.example.com"
+    assert smtp["port"] == 587
+    assert smtp["username"] == "user@example.com"
+    assert smtp["password"] == "password123"
+
+
+def test_disable_with_shame_notification(runner, isolated_env):
+    """Test disable sends notification during shame schedule."""
+    # Setup: add partner and configure SMTP
+    runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    config.set_smtp_config("smtp.example.com", 587, "user@example.com", "pass")
+
+    with patch.object(scheduler, "is_in_shame_schedule", return_value=True):
+        with patch.object(notifier, "send_shame_email", return_value=True) as mock_send:
+            with patch.object(blocker, "flush_dns_cache", return_value=True):
+                result = runner.invoke(cli, ["disable"])
+
+    assert result.exit_code == 0
+    assert "Notification sent to 1 accountability partner(s)" in result.output
+    assert "Blocking disabled" in result.output
+    mock_send.assert_called_once()
+
+
+def test_disable_shame_notification_failure(runner, isolated_env):
+    """Test disable shows warning when notification fails."""
+    runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    config.set_smtp_config("smtp.example.com", 587, "user@example.com", "pass")
+
+    with patch.object(scheduler, "is_in_shame_schedule", return_value=True):
+        with patch.object(notifier, "send_shame_email", return_value=False):
+            with patch.object(blocker, "flush_dns_cache", return_value=True):
+                result = runner.invoke(cli, ["disable"])
+
+    assert result.exit_code == 0
+    assert "Warning: Failed to send notification email" in result.output
+    assert "Blocking disabled" in result.output
+
+
+def test_disable_outside_shame_schedule(runner, isolated_env):
+    """Test disable without notification outside shame schedule."""
+    runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    config.set_smtp_config("smtp.example.com", 587, "user@example.com", "pass")
+
+    with patch.object(scheduler, "is_in_shame_schedule", return_value=False):
+        with patch.object(notifier, "send_shame_email") as mock_send:
+            with patch.object(blocker, "flush_dns_cache", return_value=True):
+                result = runner.invoke(cli, ["disable"])
+
+    assert result.exit_code == 0
+    assert "Notification sent" not in result.output
+    assert "Blocking disabled" in result.output
+    mock_send.assert_not_called()
+
+
+def test_disable_no_partners(runner, isolated_env):
+    """Test disable without notification when no partners configured."""
+    with patch.object(scheduler, "is_in_shame_schedule", return_value=True):
+        with patch.object(notifier, "send_shame_email") as mock_send:
+            with patch.object(blocker, "flush_dns_cache", return_value=True):
+                result = runner.invoke(cli, ["disable"])
+
+    assert result.exit_code == 0
+    assert "Notification sent" not in result.output
+    assert "Blocking disabled" in result.output
+    mock_send.assert_not_called()
+
+
+def test_disable_no_smtp_config(runner, isolated_env):
+    """Test disable warns when SMTP not configured."""
+    runner.invoke(cli, ["shame", "add", "partner@example.com"])
+    # Don't configure SMTP (it's empty by default)
+
+    with patch.object(scheduler, "is_in_shame_schedule", return_value=True):
+        with patch.object(blocker, "flush_dns_cache", return_value=True):
+            result = runner.invoke(cli, ["disable"])
+
+    assert result.exit_code == 0
+    assert "Warning: SMTP not configured" in result.output
+    assert "Blocking disabled" in result.output

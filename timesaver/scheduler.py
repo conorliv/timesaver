@@ -1,6 +1,10 @@
 """Time range logic for scheduling blocks."""
 
 from datetime import datetime, time
+from zoneinfo import ZoneInfo
+
+PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
+SHAME_SCHEDULE = {"start": "05:00", "end": "17:00"}
 
 
 def parse_time(time_str: str) -> time:
@@ -95,3 +99,28 @@ def is_in_schedule(
             return True
 
     return False
+
+
+def is_in_shame_schedule(current_time: datetime | None = None) -> bool:
+    """Check if current time is within 5am-5pm Pacific.
+
+    Args:
+        current_time: Optional datetime for testing (defaults to now in Pacific)
+
+    Returns:
+        True if current time is within the shame schedule (5am-5pm Pacific)
+    """
+    if current_time is None:
+        current_time = datetime.now(PACIFIC_TZ)
+    elif current_time.tzinfo is None:
+        # If no timezone, assume it's already in Pacific
+        current_time = current_time.replace(tzinfo=PACIFIC_TZ)
+    else:
+        # Convert to Pacific
+        current_time = current_time.astimezone(PACIFIC_TZ)
+
+    current = current_time.time()
+    start = parse_time(SHAME_SCHEDULE["start"])
+    end = parse_time(SHAME_SCHEDULE["end"])
+
+    return is_time_in_range(current, start, end)

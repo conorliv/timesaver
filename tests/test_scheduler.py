@@ -1,11 +1,14 @@
 """Tests for scheduler module."""
 
 from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 import pytest
 
 from timesaver.scheduler import (
+    PACIFIC_TZ,
     is_in_schedule,
+    is_in_shame_schedule,
     is_time_in_range,
     parse_time,
     validate_time_format,
@@ -129,3 +132,63 @@ def test_is_in_schedule_uses_current_time_when_none():
     schedules = [{"start": "00:00", "end": "23:59"}]
     result = is_in_schedule(schedules, None)
     assert result is True
+
+
+def test_is_in_shame_schedule_during_focus_hours():
+    """Test is_in_shame_schedule returns True during 5am-5pm Pacific."""
+    # 10am Pacific
+    test_time = datetime(2024, 1, 15, 10, 0, 0, tzinfo=PACIFIC_TZ)
+    assert is_in_shame_schedule(test_time) is True
+
+    # 5am Pacific (start boundary)
+    test_time = datetime(2024, 1, 15, 5, 0, 0, tzinfo=PACIFIC_TZ)
+    assert is_in_shame_schedule(test_time) is True
+
+    # 5pm Pacific (end boundary)
+    test_time = datetime(2024, 1, 15, 17, 0, 0, tzinfo=PACIFIC_TZ)
+    assert is_in_shame_schedule(test_time) is True
+
+
+def test_is_in_shame_schedule_outside_focus_hours():
+    """Test is_in_shame_schedule returns False outside 5am-5pm Pacific."""
+    # 4am Pacific (before start)
+    test_time = datetime(2024, 1, 15, 4, 59, 0, tzinfo=PACIFIC_TZ)
+    assert is_in_shame_schedule(test_time) is False
+
+    # 6pm Pacific (after end)
+    test_time = datetime(2024, 1, 15, 18, 0, 0, tzinfo=PACIFIC_TZ)
+    assert is_in_shame_schedule(test_time) is False
+
+    # Midnight Pacific
+    test_time = datetime(2024, 1, 15, 0, 0, 0, tzinfo=PACIFIC_TZ)
+    assert is_in_shame_schedule(test_time) is False
+
+
+def test_is_in_shame_schedule_timezone_conversion():
+    """Test that times in other timezones are properly converted to Pacific."""
+    # 1pm UTC is 5am Pacific (during winter)
+    utc_tz = ZoneInfo("UTC")
+    test_time = datetime(2024, 1, 15, 13, 0, 0, tzinfo=utc_tz)
+    assert is_in_shame_schedule(test_time) is True
+
+    # 4am UTC is 8pm Pacific previous day (during winter) - outside schedule
+    test_time = datetime(2024, 1, 15, 4, 0, 0, tzinfo=utc_tz)
+    assert is_in_shame_schedule(test_time) is False
+
+
+def test_is_in_shame_schedule_naive_datetime():
+    """Test that naive datetime is assumed to be Pacific."""
+    # 10am - inside schedule
+    test_time = datetime(2024, 1, 15, 10, 0, 0)
+    assert is_in_shame_schedule(test_time) is True
+
+    # 10pm - outside schedule
+    test_time = datetime(2024, 1, 15, 22, 0, 0)
+    assert is_in_shame_schedule(test_time) is False
+
+
+def test_is_in_shame_schedule_uses_current_time_when_none():
+    """Test that is_in_shame_schedule uses current time when not provided."""
+    # Just verify it runs without error
+    result = is_in_shame_schedule(None)
+    assert isinstance(result, bool)
