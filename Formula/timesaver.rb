@@ -5,9 +5,9 @@ class Timesaver < Formula
   include Language::Python::Virtualenv
 
   desc "macOS CLI tool to block distracting websites on a schedule"
-  homepage "https://github.com/YOURUSERNAME/timesaver"
-  url "https://github.com/YOURUSERNAME/timesaver/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "REPLACE_WITH_ACTUAL_SHA256_AFTER_RELEASE"
+  homepage "https://github.com/conorliv/timesaver"
+  url "https://github.com/conorliv/timesaver/archive/refs/tags/v0.1.0.tar.gz"
+  sha256 "944e0e3fe9fb8b71796135f7b6972f3fc8dbe4d0ff8db039ea38dfb3894ae809"
   license "MIT"
 
   depends_on "python@3.11"

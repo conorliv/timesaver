@@ -7,7 +7,7 @@ A macOS CLI tool that blocks distracting websites based on time-of-day schedules
 ### Via Homebrew (recommended)
 
 ```bash
-brew tap yourusername/timesaver
+brew tap conorliv/timesaver
 brew install timesaver
 ```
 
@@ -24,7 +24,7 @@ pip install timesaver
 ### From source
 
 ```bash
-git clone https://github.com/yourusername/timesaver.git
+git clone https://github.com/conorliv/timesaver.git
 cd timesaver
 uv sync
 uv run timesaver --help
