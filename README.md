@@ -4,21 +4,23 @@ A macOS CLI tool that blocks distracting websites based on time-of-day schedules
 
 ## Installation
 
-### Via Homebrew (recommended)
+### Via uv (recommended)
+
+```bash
+uv tool install git+https://github.com/conorliv/timesaver.git
+```
+
+### Via pipx
+
+```bash
+pipx install git+https://github.com/conorliv/timesaver.git
+```
+
+### Via Homebrew
 
 ```bash
 brew tap conorliv/timesaver
 brew install timesaver
-```
-
-### Via pip/uv
-
-```bash
-# Using uv
-uv tool install timesaver
-
-# Using pip
-pip install timesaver
 ```
 
 ### From source
