@@ -11,6 +11,10 @@ dependencies = [
 [project.scripts]
 timesaver = "timesaver.main:main"
 
+[tool.setuptools.packages.find]
+include = ["timesaver*"]
+exclude = ["Formula*", "tests*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
