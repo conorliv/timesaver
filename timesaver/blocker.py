@@ -1,9 +1,13 @@
 """Hosts file manipulation for blocking websites."""
 
+import os
+import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 HOSTS_PATH = Path("/etc/hosts")
+BACKUP_PATH = Path("/etc/hosts.timesaver.bak")
 MARKER_START = "# TIMESAVER-START"
 MARKER_END = "# TIMESAVER-END"
 REDIRECT_IP = "127.0.0.1"
@@ -23,14 +27,39 @@ def read_hosts_file(hosts_path: Path | None = None) -> str:
 
 
 def write_hosts_file(content: str, hosts_path: Path | None = None) -> None:
-    """Write content to the hosts file.
+    """Write content to the hosts file atomically with backup.
+
+    Uses atomic write pattern:
+    1. Create backup of original file
+    2. Write to temporary file
+    3. Atomically rename temp file to target
 
     Args:
         content: Content to write
         hosts_path: Path to hosts file (defaults to /etc/hosts)
     """
     path = hosts_path or HOSTS_PATH
-    path.write_text(content)
+    backup_path = path.parent / f"{path.name}.timesaver.bak"
+
+    # Create backup if original exists
+    if path.exists():
+        shutil.copy2(path, backup_path)
+
+    # Write to temp file in same directory (required for atomic rename)
+    temp_fd, temp_path = tempfile.mkstemp(dir=path.parent, prefix=".hosts_tmp_")
+    temp_file = Path(temp_path)
+    try:
+        os.close(temp_fd)  # Close the file descriptor from mkstemp
+        temp_file.write_text(content)
+        # Preserve original permissions
+        if path.exists():
+            shutil.copymode(path, temp_file)
+        # Atomic rename
+        temp_file.rename(path)
+    except Exception:
+        # Clean up temp file on failure
+        temp_file.unlink(missing_ok=True)
+        raise
 
 
 def generate_block_entries(domains: list[str]) -> str:
@@ -114,6 +143,50 @@ def remove_blocks(hosts_path: Path | None = None) -> None:
     # Ensure file ends with newline
     content = content.rstrip() + "\n"
     write_hosts_file(content, hosts_path)
+
+
+def get_backup_path(hosts_path: Path | None = None) -> Path:
+    """Get the path to the backup file.
+
+    Args:
+        hosts_path: Path to hosts file (defaults to /etc/hosts)
+
+    Returns:
+        Path to the backup file
+    """
+    path = hosts_path or HOSTS_PATH
+    return path.parent / f"{path.name}.timesaver.bak"
+
+
+def has_backup(hosts_path: Path | None = None) -> bool:
+    """Check if a backup file exists.
+
+    Args:
+        hosts_path: Path to hosts file (defaults to /etc/hosts)
+
+    Returns:
+        True if backup exists
+    """
+    return get_backup_path(hosts_path).exists()
+
+
+def restore_from_backup(hosts_path: Path | None = None) -> bool:
+    """Restore hosts file from backup.
+
+    Args:
+        hosts_path: Path to hosts file (defaults to /etc/hosts)
+
+    Returns:
+        True if restored successfully, False if no backup exists
+    """
+    path = hosts_path or HOSTS_PATH
+    backup_path = get_backup_path(hosts_path)
+
+    if not backup_path.exists():
+        return False
+
+    shutil.copy2(backup_path, path)
+    return True
 
 
 def flush_dns_cache() -> bool:

@@ -203,3 +203,95 @@ malformed
         assert "twitter.com" in blocks
         assert "facebook.com" in blocks
         # malformed line should be skipped
+
+
+def test_write_hosts_file_creates_backup(temp_hosts):
+    """Test that write creates a backup file."""
+    original_content = temp_hosts.read_text()
+    backup_path = temp_hosts.parent / f"{temp_hosts.name}.timesaver.bak"
+
+    blocker.write_hosts_file("new content\n", temp_hosts)
+
+    assert backup_path.exists()
+    assert backup_path.read_text() == original_content
+    assert temp_hosts.read_text() == "new content\n"
+
+
+def test_write_hosts_file_atomic(temp_hosts):
+    """Test that write is atomic (backup exists after write)."""
+    blocker.write_hosts_file("first write\n", temp_hosts)
+    blocker.write_hosts_file("second write\n", temp_hosts)
+
+    backup_path = temp_hosts.parent / f"{temp_hosts.name}.timesaver.bak"
+    assert backup_path.exists()
+    # Backup should have content from before second write
+    assert backup_path.read_text() == "first write\n"
+
+
+def test_has_backup(temp_hosts):
+    """Test has_backup function."""
+    assert blocker.has_backup(temp_hosts) is False
+
+    # Create a backup
+    blocker.write_hosts_file("content\n", temp_hosts)
+    assert blocker.has_backup(temp_hosts) is True
+
+
+def test_get_backup_path(temp_hosts):
+    """Test get_backup_path function."""
+    backup_path = blocker.get_backup_path(temp_hosts)
+    assert backup_path.name == f"{temp_hosts.name}.timesaver.bak"
+    assert backup_path.parent == temp_hosts.parent
+
+
+def test_restore_from_backup(temp_hosts):
+    """Test restore_from_backup function."""
+    original_content = temp_hosts.read_text()
+
+    # Modify the file (this creates a backup)
+    blocker.write_hosts_file("modified content\n", temp_hosts)
+    assert temp_hosts.read_text() == "modified content\n"
+
+    # Restore from backup
+    result = blocker.restore_from_backup(temp_hosts)
+    assert result is True
+    assert temp_hosts.read_text() == original_content
+
+
+def test_restore_from_backup_no_backup(temp_hosts):
+    """Test restore_from_backup when no backup exists."""
+    result = blocker.restore_from_backup(temp_hosts)
+    assert result is False
+
+
+def test_write_hosts_file_new_file(tmp_path):
+    """Test writing to a file that doesn't exist yet."""
+    new_hosts = tmp_path / "new_hosts"
+    assert not new_hosts.exists()
+
+    blocker.write_hosts_file("new content\n", new_hosts)
+
+    assert new_hosts.exists()
+    assert new_hosts.read_text() == "new content\n"
+    # No backup should be created for new file
+    backup_path = tmp_path / "new_hosts.timesaver.bak"
+    assert not backup_path.exists()
+
+
+def test_write_hosts_file_exception_cleanup(tmp_path):
+    """Test that temp file is cleaned up on exception."""
+    hosts_file = tmp_path / "hosts"
+    hosts_file.write_text("original\n")
+
+    # Make the rename fail by making target a directory
+    with patch("pathlib.Path.rename") as mock_rename:
+        mock_rename.side_effect = OSError("rename failed")
+
+        with pytest.raises(OSError):
+            blocker.write_hosts_file("new content\n", hosts_file)
+
+    # Original file should still exist
+    assert hosts_file.read_text() == "original\n"
+    # Temp files should be cleaned up
+    temp_files = list(tmp_path.glob(".hosts_tmp_*"))
+    assert len(temp_files) == 0

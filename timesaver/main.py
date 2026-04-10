@@ -194,6 +194,25 @@ def uninstall_daemon_cmd() -> None:
         click.echo("Failed to uninstall daemon.")
 
 
+@cli.command()
+def restore() -> None:
+    """Restore /etc/hosts from backup (emergency recovery)."""
+    if not blocker.has_backup():
+        click.echo("No backup file found.")
+        return
+
+    backup_path = blocker.get_backup_path()
+    click.echo(f"Backup found at: {backup_path}")
+
+    if blocker.restore_from_backup():
+        blocker.flush_dns_cache()
+        config.set_enabled(False)
+        click.echo("Hosts file restored from backup.")
+        click.echo("Blocking has been disabled.")
+    else:
+        click.echo("Failed to restore from backup.")
+
+
 def main() -> None:
     """Main entry point."""
     cli()

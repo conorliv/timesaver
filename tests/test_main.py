@@ -291,3 +291,37 @@ def test_main_function(isolated_env):
     with patch.object(cli, "main", return_value=None) as mock_cli:
         main()
         mock_cli.assert_called_once()
+
+
+def test_restore_no_backup(runner, isolated_env):
+    """Test restore command when no backup exists."""
+    result = runner.invoke(cli, ["restore"])
+    assert result.exit_code == 0
+    assert "No backup file found" in result.output
+
+
+def test_restore_with_backup(runner, isolated_env):
+    """Test restore command with existing backup."""
+    # Enable blocking to create a backup
+    runner.invoke(cli, ["add", "twitter.com"])
+    with patch.object(blocker, "flush_dns_cache", return_value=True):
+        runner.invoke(cli, ["enable"])
+
+    # Now restore
+    with patch.object(blocker, "flush_dns_cache", return_value=True):
+        result = runner.invoke(cli, ["restore"])
+
+    assert result.exit_code == 0
+    assert "restored from backup" in result.output
+
+
+def test_restore_failure(runner, isolated_env):
+    """Test restore command when restore fails."""
+    # Mock has_backup to return True but restore_from_backup to return False
+    with patch.object(blocker, "has_backup", return_value=True):
+        with patch.object(blocker, "get_backup_path", return_value=Path("/fake/backup")):
+            with patch.object(blocker, "restore_from_backup", return_value=False):
+                result = runner.invoke(cli, ["restore"])
+
+    assert result.exit_code == 0
+    assert "Failed to restore" in result.output
