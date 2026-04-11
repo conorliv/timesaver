@@ -39,9 +39,14 @@ def test_generate_block_entries():
     entries = blocker.generate_block_entries(["twitter.com", "facebook.com"])
     assert blocker.MARKER_START in entries
     assert blocker.MARKER_END in entries
+    # IPv4 entries
     assert "127.0.0.1 twitter.com" in entries
     assert "127.0.0.1 www.twitter.com" in entries
     assert "127.0.0.1 facebook.com" in entries
+    # IPv6 entries
+    assert "::1 twitter.com" in entries
+    assert "::1 www.twitter.com" in entries
+    assert "::1 facebook.com" in entries
 
 
 def test_generate_block_entries_empty():
@@ -54,6 +59,7 @@ def test_generate_block_entries_with_www():
     """Test that www domains don't get double www."""
     entries = blocker.generate_block_entries(["www.example.com"])
     assert "127.0.0.1 www.example.com" in entries
+    assert "::1 www.example.com" in entries
     # Should not have www.www.example.com
     assert "www.www" not in entries
 
@@ -84,8 +90,12 @@ def test_apply_blocks(temp_hosts):
     blocker.apply_blocks(["twitter.com"], temp_hosts)
     content = temp_hosts.read_text()
     assert blocker.MARKER_START in content
+    # IPv4 entries
     assert "127.0.0.1 twitter.com" in content
     assert "127.0.0.1 www.twitter.com" in content
+    # IPv6 entries
+    assert "::1 twitter.com" in content
+    assert "::1 www.twitter.com" in content
 
 
 def test_apply_blocks_empty(temp_hosts):

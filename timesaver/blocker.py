@@ -11,6 +11,7 @@ BACKUP_PATH = Path("/etc/hosts.timesaver.bak")
 MARKER_START = "# TIMESAVER-START"
 MARKER_END = "# TIMESAVER-END"
 REDIRECT_IP = "127.0.0.1"
+REDIRECT_IP6 = "::1"
 
 
 def read_hosts_file(hosts_path: Path | None = None) -> str:
@@ -76,10 +77,12 @@ def generate_block_entries(domains: list[str]) -> str:
 
     lines = [MARKER_START]
     for domain in sorted(set(domains)):
-        # Add both with and without www
+        # Add both with and without www, for both IPv4 and IPv6
         lines.append(f"{REDIRECT_IP} {domain}")
+        lines.append(f"{REDIRECT_IP6} {domain}")
         if not domain.startswith("www."):
             lines.append(f"{REDIRECT_IP} www.{domain}")
+            lines.append(f"{REDIRECT_IP6} www.{domain}")
     lines.append(MARKER_END)
 
     return "\n".join(lines)
